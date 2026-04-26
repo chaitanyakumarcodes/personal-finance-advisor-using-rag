@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinSight — Personal Finance Advisor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- ─── HEADER ─────────────────────────────────── -->
+<header class="header">
+  <div class="header-logo">
+    <span class="logo-mark">◈</span>
+    <span class="logo-text">FinSight</span>
+    <span class="logo-tag">RAG-POWERED</span>
+  </div>
+  <nav class="header-nav">
+    <button class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</button>
+    <button class="nav-btn" data-view="advisor" onclick="switchView('advisor')">AI Advisor</button>
+    <button class="nav-btn" data-view="anomalies" onclick="switchView('anomalies')">Anomalies</button>
+  </nav>
+  <div class="header-status" id="headerStatus">
+    <span class="status-dot inactive"></span>
+    <span>No data loaded</span>
+  </div>
+</header>
+
+<!-- ─── UPLOAD SECTION ─────────────────────────── -->
+<section class="upload-section" id="uploadSection">
+  <div class="upload-hero">
+    <div class="upload-grid-bg"></div>
+    <div class="upload-content">
+      <div class="upload-eyebrow">STEP 01 — DATA INGESTION</div>
+      <h1 class="upload-headline">Your bank statement.<br>Transformed into <em>intelligence.</em></h1>
+      <p class="upload-sub">Upload your CSV or PDF bank statement. FinSight parses, categorizes, and analyzes every transaction using RAG + LLM reasoning.</p>
+
+      <div class="upload-zone" id="uploadZone"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)">
+        <input type="file" id="fileInput" accept=".csv,.pdf" hidden onchange="handleFileSelect(event)">
+        <div class="upload-zone-icon">⬆</div>
+        <div class="upload-zone-text">
+          <strong>Drop your bank statement here</strong>
+          <span>CSV or PDF · Max 10MB</span>
+        </div>
+        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">Browse Files</button>
+      </div>
+
+      <div class="upload-actions">
+        <button class="demo-btn" onclick="loadSampleData()">
+          <span>◈</span> Try with sample data
+        </button>
+        <span class="upload-note">No data is stored permanently · Session only</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── LOADING OVERLAY ────────────────────────── -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="loading-content">
+    <div class="loading-spinner"></div>
+    <div class="loading-steps" id="loadingSteps">
+      <div class="loading-step active">Parsing transactions...</div>
+      <div class="loading-step">Categorizing with rule engine...</div>
+      <div class="loading-step">Running anomaly detection...</div>
+      <div class="loading-step">Retrieving financial knowledge...</div>
+      <div class="loading-step">Generating initial analysis...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MAIN APP ───────────────────────────────── -->
+<main class="app-main" id="appMain" style="display:none">
+
+  <!-- DASHBOARD VIEW -->
+  <div class="view active" id="view-dashboard">
+
+    <!-- Stats Row -->
+    <div class="stats-row" id="statsRow"></div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+      <!-- Donut chart: category breakdown -->
+      <div class="chart-card" id="categoryCard">
+        <div class="chart-header">
+          <div>
+            <div class="chart-label">SPENDING BREAKDOWN</div>
+            <div class="chart-title">By Category</div>
+          </div>
+          <div class="chart-month" id="chartMonth"></div>
+        </div>
+        <div class="chart-donut-wrap">
+          <canvas id="donutChart"></canvas>
+          <div class="donut-center">
+            <div class="donut-center-amt" id="donutTotal"></div>
+            <div class="donut-center-label">total spend</div>
+          </div>
+        </div>
+        <div class="category-legend" id="categoryLegend"></div>
+      </div>
+
+      <!-- Bar chart: monthly trend -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-label">CASH FLOW</div>
+            <div class="chart-title">Monthly Trend</div>
+          </div>
+        </div>
+        <canvas id="trendChart" style="max-height:220px"></canvas>
+      </div>
+
+      <!-- MoM Change table -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-label">MONTH-OVER-MONTH</div>
+            <div class="chart-title">Category Changes</div>
+          </div>
+        </div>
+        <div class="mom-list" id="momList"></div>
+      </div>
+
+      <!-- Alert card -->
+      <div class="chart-card alert-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-label">AI ALERTS</div>
+            <div class="chart-title">Anomalies & Flags</div>
+          </div>
+          <div class="alert-badge" id="alertBadge"></div>
+        </div>
+        <div class="alert-list" id="alertList"></div>
+        <button class="view-all-btn" onclick="switchView('anomalies')">View full report →</button>
+      </div>
+    </div>
+
+    <!-- Initial Analysis -->
+    <div class="analysis-card" id="initialAnalysisCard" style="display:none">
+      <div class="analysis-header">
+        <div class="analysis-icon">◈</div>
+        <div>
+          <div class="chart-label">AI INITIAL ANALYSIS</div>
+          <div class="chart-title">Auto-generated insights on your data</div>
+        </div>
+      </div>
+      <div class="analysis-body" id="initialAnalysisBody"></div>
+    </div>
+  </div>
+
+  <!-- ADVISOR VIEW -->
+  <div class="view" id="view-advisor">
+    <div class="advisor-layout">
+      <!-- Chat panel -->
+      <div class="chat-panel">
+        <div class="chat-header">
+          <div class="chat-avatar">◈</div>
+          <div>
+            <div class="chat-name">FinSight Advisor</div>
+            <div class="chat-sub">RAG · Claude · Real-time retrieval</div>
+          </div>
+          <div class="chat-indicator">
+            <span class="status-dot active"></span>
+            <span>Ready</span>
+          </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-welcome">
+            <div class="welcome-icon">◈</div>
+            <div class="welcome-text">Your financial data is loaded. Ask me anything about your spending, savings, or how to improve your finances.</div>
+          </div>
+        </div>
+
+        <div class="chat-input-row">
+          <input type="text" class="chat-input" id="chatInput"
+                 placeholder="Ask about your finances... (e.g. 'How can I save ₹5,000 more?')"
+                 onkeydown="if(event.key==='Enter') sendMessage()">
+          <button class="chat-send" onclick="sendMessage()" id="sendBtn">
+            <span>→</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick prompts + sources panel -->
+      <div class="advisor-sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-label">QUICK QUESTIONS</div>
+          <div class="quick-prompts" id="quickPrompts">
+            <button onclick="askQuick('How can I reduce my food spending?')">🍔 Reduce food spend</button>
+            <button onclick="askQuick('Where am I wasting the most money?')">💸 Biggest waste areas</button>
+            <button onclick="askQuick('How much should I be saving and where should I invest?')">📈 Savings & investment plan</button>
+            <button onclick="askQuick('Analyze my transport costs and suggest alternatives')">🚗 Optimize transport</button>
+            <button onclick="askQuick('Which subscriptions should I cancel?')">📱 Subscription audit</button>
+            <button onclick="askQuick('What are my financial goals and how close am I?')">🎯 Goal tracking</button>
+            <button onclick="askQuick('Create a monthly budget based on my spending patterns')">📊 Build my budget</button>
+            <button onclick="askQuick('Explain my anomalous transactions')">⚠️ Explain anomalies</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section" id="sourcesPanel" style="display:none">
+          <div class="sidebar-label">KNOWLEDGE SOURCES USED</div>
+          <div class="sources-list" id="sourcesList"></div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-label">SYSTEM INFO</div>
+          <div class="system-info">
+            <div class="info-row"><span>Model</span><span>Claude 3.5 Sonnet</span></div>
+            <div class="info-row"><span>Retrieval</span><span>FAISS + MiniLM</span></div>
+            <div class="info-row"><span>KB Docs</span><span>13 documents</span></div>
+            <div class="info-row"><span>Method</span><span>RAG Pipeline</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANOMALIES VIEW -->
+  <div class="view" id="view-anomalies">
+    <div class="anomalies-layout">
+      <div class="anomalies-header-row">
+        <div>
+          <div class="chart-label">ANOMALY DETECTION ENGINE</div>
+          <h2 class="anomalies-title">Statistical Analysis & Alerts</h2>
+        </div>
+        <div class="method-badges">
+          <span class="method-badge">Z-Score Detection</span>
+          <span class="method-badge">Budget Threshold</span>
+          <span class="method-badge">MoM Velocity</span>
+        </div>
+      </div>
+
+      <div class="anomaly-grid">
+        <div class="anomaly-section">
+          <div class="anomaly-section-title">⚠️ Budget Overruns</div>
+          <div id="budgetAlerts"></div>
+        </div>
+        <div class="anomaly-section">
+          <div class="anomaly-section-title">📈 Category Spikes</div>
+          <div id="categorySpikes"></div>
+        </div>
+        <div class="anomaly-section" style="grid-column: 1/-1">
+          <div class="anomaly-section-title">🔍 Unusual Transactions (Z-Score)</div>
+          <div id="txnAnomalies"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
