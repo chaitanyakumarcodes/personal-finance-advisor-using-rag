@@ -1,11 +1,11 @@
 flask==3.0.3
 flask-cors==4.0.1
+flask-session==0.8.0
 pandas==2.2.2
 numpy==1.26.4
 scikit-learn==1.5.1
-faiss-cpu==1.8.0
-sentence-transformers==3.0.1
 openai>=1.30.0
 pdfplumber==0.11.4
 python-dotenv==1.0.1
 werkzeug==3.0.3
+gunicorn==22.0.0
