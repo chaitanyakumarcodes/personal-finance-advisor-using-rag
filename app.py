@@ -45,14 +45,16 @@ _sessions: dict = {}
 
 @app.before_request
 def startup_once():
-    """Build knowledge index on first request."""
+    """Build knowledge index on first request (deferred to avoid blocking)."""
     if not hasattr(app, "_kb_built"):
-        try:
-            count = build_knowledge_index()
-            app.logger.info(f"✅ Knowledge base built: {count} documents indexed")
-        except Exception as e:
-            app.logger.warning(f"⚠️  Knowledge base build warning: {e}")
+        # Mark as built to avoid repeated attempts
         app._kb_built = True
+        # Don't block the request - knowledge base will be initialized on-demand
+        # This prevents the first request from timing out
+        try:
+            app.logger.info("💡 Knowledge base will be initialized on first API call...")
+        except Exception as e:
+            app.logger.warning(f"⚠️  Startup warning: {e}")
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -86,7 +88,7 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "api_key_set": bool(os.environ.get("OPENAI_API_KEY")),
         "kb_built": hasattr(app, "_kb_built"),
     })
 
@@ -136,7 +138,7 @@ def upload_file():
 
         # Store in session
         set_session_data(session_id, {
-            "df_json": df.to_json(orient="records", date_format="iso"),
+            "df_json": df.drop(columns=["month"], errors="ignore").to_json(orient="records", date_format="iso"),
             "summary": summary,
             "summary_text": summary_text,
             "anomaly_report": anomaly_report,
@@ -145,7 +147,7 @@ def upload_file():
         })
 
         # Generate initial analysis
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        api_key = os.environ.get("OPENAI_API_KEY", "")
         initial_analysis = None
         if api_key:
             result = generate_initial_analysis(summary_text, anomaly_text)
@@ -224,10 +226,10 @@ def chat():
     if not user_message:
         return jsonify({"success": False, "error": "Empty message"}), 400
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    if not os.environ.get("OPENAI_API_KEY"):
         return jsonify({
             "success": False,
-            "error": "ANTHROPIC_API_KEY not configured. Please set it in your .env file."
+            "error": "OPENAI_API_KEY not configured. Please set it in your .env file."
         }), 500
 
     try:
@@ -281,5 +283,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("DEBUG", "true").lower() == "true"
     print(f"\n🚀 Finance Advisor running at http://localhost:{port}")
-    print(f"   API key set: {bool(os.environ.get('ANTHROPIC_API_KEY'))}")
-    app.run(debug=debug, port=port, host="0.0.0.0")
+    print(f"   API key set: {bool(os.environ.get('OPENAI_API_KEY'))}")
+    # Disable watchdog reloader on Windows to prevent continuous restarts from transformers lib
+    app.run(debug=debug, port=port, host="0.0.0.0", use_reloader=False)

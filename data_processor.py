@@ -1,19 +1,14 @@
 """
 data_processor.py — Transaction ingestion, categorization, and feature engineering.
-
-Pipeline:
-  CSV/PDF → parse → categorize → engineer features → summary stats
 """
 
 import pandas as pd
 import numpy as np
 import io
 import re
-from datetime import datetime
+import random
+import datetime
 from typing import Optional
-
-# ─── CATEGORY RULES ──────────────────────────────────────────────────────────
-# Pattern → Category mapping (order matters: first match wins)
 
 CATEGORY_RULES = {
     "Food & Dining": [
@@ -84,8 +79,8 @@ CATEGORY_RULES = {
     ],
 }
 
+
 def categorize_transaction(description: str) -> str:
-    """Rule-based categorization using regex patterns."""
     desc = description.lower().strip()
     for category, patterns in CATEGORY_RULES.items():
         for pattern in patterns:
@@ -94,13 +89,7 @@ def categorize_transaction(description: str) -> str:
     return "Others"
 
 
-# ─── DATA INGESTION ───────────────────────────────────────────────────────────
-
 def parse_csv(file_content: bytes) -> pd.DataFrame:
-    """
-    Parse a bank statement CSV. Tries to auto-detect common column formats.
-    Expected columns (flexible): Date, Description/Narration, Debit/Credit/Amount
-    """
     try:
         df = pd.read_csv(io.BytesIO(file_content))
     except Exception as e:
@@ -108,22 +97,18 @@ def parse_csv(file_content: bytes) -> pd.DataFrame:
 
     df.columns = df.columns.str.strip().str.lower()
 
-    # ── Map date column ──
     date_candidates = ["date", "txn date", "transaction date", "value date", "posting date"]
     date_col = next((c for c in df.columns if any(d in c for d in date_candidates)), None)
     if date_col is None:
         raise ValueError("No date column found. Expected one of: Date, Txn Date, Transaction Date")
     df["date"] = pd.to_datetime(df[date_col], dayfirst=True, errors="coerce")
 
-    # ── Map description column ──
     desc_candidates = ["description", "narration", "particulars", "details", "remarks", "transaction details"]
     desc_col = next((c for c in df.columns if any(d in c for d in desc_candidates)), None)
     if desc_col is None:
         raise ValueError("No description column found.")
     df["description"] = df[desc_col].astype(str).str.strip()
 
-    # ── Map amount columns ──
-    # Case 1: Separate debit/credit columns
     debit_col = next((c for c in df.columns if "debit" in c or "dr" == c), None)
     credit_col = next((c for c in df.columns if "credit" in c or "cr" == c), None)
 
@@ -133,7 +118,6 @@ def parse_csv(file_content: bytes) -> pd.DataFrame:
         df["amount"] = df["debit"].where(df["debit"] > 0, df["credit"])
         df["type"] = df.apply(lambda r: "debit" if r["debit"] > 0 else "credit", axis=1)
     else:
-        # Case 2: Single amount column with +/- sign
         amount_col = next((c for c in df.columns if "amount" in c or "amt" in c), None)
         if amount_col is None:
             raise ValueError("No amount column found.")
@@ -141,7 +125,6 @@ def parse_csv(file_content: bytes) -> pd.DataFrame:
         df["type"] = df["amount"].apply(lambda x: "credit" if x > 0 else "debit")
         df["amount"] = df["amount"].abs()
 
-    # ── Clean up ──
     df = df.dropna(subset=["date", "amount"])
     df = df[df["amount"] > 0]
     df["category"] = df["description"].apply(categorize_transaction)
@@ -152,7 +135,6 @@ def parse_csv(file_content: bytes) -> pd.DataFrame:
 
 
 def parse_pdf(file_content: bytes) -> pd.DataFrame:
-    """Extract transactions from PDF bank statements using pdfplumber."""
     try:
         import pdfplumber
     except ImportError:
@@ -163,7 +145,7 @@ def parse_pdf(file_content: bytes) -> pd.DataFrame:
         for page in pdf.pages:
             tables = page.extract_tables()
             for table in tables:
-                for row in table[1:]:  # skip header
+                for row in table[1:]:
                     if row and len(row) >= 3:
                         rows.append(row)
 
@@ -172,8 +154,6 @@ def parse_pdf(file_content: bytes) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     df.columns = [f"col_{i}" for i in range(len(df.columns))]
-
-    # Best-effort: assume col_0=date, col_1=desc, col_2=debit, col_3=credit
     df.rename(columns={"col_0": "date", "col_1": "description", "col_2": "debit_raw", "col_3": "credit_raw"}, inplace=True)
     df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce")
     df["description"] = df.get("description", "").astype(str)
@@ -189,13 +169,7 @@ def parse_pdf(file_content: bytes) -> pd.DataFrame:
     return df[["date", "description", "amount", "type", "category", "month", "year_month"]]
 
 
-# ─── FEATURE ENGINEERING ─────────────────────────────────────────────────────
-
 def compute_financial_summary(df: pd.DataFrame) -> dict:
-    """
-    Core feature engineering — turns raw transactions into meaningful signals.
-    Returns a rich summary dict used by the RAG pipeline.
-    """
     debits = df[df["type"] == "debit"].copy()
     credits = df[df["type"] == "credit"].copy()
 
@@ -203,15 +177,11 @@ def compute_financial_summary(df: pd.DataFrame) -> dict:
     latest_month = months[-1] if months else None
     prev_month = months[-2] if len(months) >= 2 else None
 
-    # ── Per category, per month spend ──
     monthly_cat = (
         debits.groupby(["year_month", "category"])["amount"]
-        .sum()
-        .reset_index()
-        .rename(columns={"amount": "spend"})
+        .sum().reset_index().rename(columns={"amount": "spend"})
     )
 
-    # ── MoM change per category ──
     mom_changes = {}
     if latest_month and prev_month:
         for cat in debits["category"].unique():
@@ -222,7 +192,6 @@ def compute_financial_summary(df: pd.DataFrame) -> dict:
             elif curr > 0:
                 mom_changes[cat] = 100.0
 
-    # ── Latest month stats ──
     latest_debits = debits[debits["year_month"] == latest_month] if latest_month else debits
     latest_credits = credits[credits["year_month"] == latest_month] if latest_month else credits
 
@@ -231,25 +200,16 @@ def compute_financial_summary(df: pd.DataFrame) -> dict:
     savings = total_income - total_spend
     savings_rate = round((savings / total_income) * 100, 1) if total_income > 0 else 0
 
-    # ── Category breakdown ──
     cat_spend = latest_debits.groupby("category")["amount"].sum().sort_values(ascending=False)
     cat_pct = (cat_spend / total_spend * 100).round(1) if total_spend > 0 else cat_spend * 0
 
-    # ── Top merchants ──
     top_merchants = (
-        latest_debits.groupby("description")["amount"]
-        .sum()
-        .sort_values(ascending=False)
-        .head(10)
-        .to_dict()
+        latest_debits.groupby("description")["amount"].sum()
+        .sort_values(ascending=False).head(10).to_dict()
     )
 
-    # ── Monthly trend ──
     monthly_spend = debits.groupby("year_month")["amount"].sum().to_dict()
     monthly_income = credits.groupby("year_month")["amount"].sum().to_dict()
-
-    # ── Transaction count ──
-    txn_count = len(debits)
 
     return {
         "latest_month": latest_month,
@@ -264,13 +224,12 @@ def compute_financial_summary(df: pd.DataFrame) -> dict:
         "top_merchants": top_merchants,
         "monthly_spend": monthly_spend,
         "monthly_income": monthly_income,
-        "transaction_count": txn_count,
+        "transaction_count": len(debits),
         "months_available": months,
     }
 
 
 def summary_to_text(summary: dict) -> str:
-    """Convert financial summary to human-readable text for LLM context."""
     lines = [
         f"## Financial Summary — {summary.get('latest_month', 'N/A')}",
         "",
@@ -302,10 +261,7 @@ def summary_to_text(summary: dict) -> str:
 
 
 def generate_sample_csv() -> str:
-    """Generate a realistic sample CSV for demo purposes."""
-    import random
     random.seed(42)
-
     data = []
     merchants = {
         "Food & Dining": [("Swiggy", 350), ("Zomato", 420), ("Starbucks", 680), ("McDonald's", 280), ("BigBasket", 1200)],
@@ -317,8 +273,6 @@ def generate_sample_csv() -> str:
         "Health & Medical": [("Practo Consultation", 500), ("1mg Pharmacy", 320)],
     }
 
-    # Two months of transactions
-    import datetime
     for month_offset in [1, 0]:
         base_date = datetime.date.today().replace(day=1)
         if month_offset:
@@ -330,7 +284,6 @@ def generate_sample_csv() -> str:
             count = freq.get(category, 2)
             for _ in range(count):
                 merchant, base_amt = random.choice(txns)
-                # Increase food spend in latest month for demo
                 if month_offset == 0 and category == "Food & Dining":
                     amount = base_amt * random.uniform(1.3, 1.6)
                 else:
@@ -344,7 +297,6 @@ def generate_sample_csv() -> str:
                     "Credit": ""
                 })
 
-        # Add salary credit
         data.append({
             "Date": base_date.strftime("%d/%m/%Y"),
             "Description": "SALARY CREDIT NEFT",
@@ -352,5 +304,6 @@ def generate_sample_csv() -> str:
             "Credit": 75000
         })
 
+    import pandas as pd
     df = pd.DataFrame(data)
     return df.to_csv(index=False)

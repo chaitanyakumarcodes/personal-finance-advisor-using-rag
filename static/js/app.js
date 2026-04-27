@@ -24,24 +24,32 @@ const PALETTE = [
 function switchView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(`view-${name}`).classList.add('active');
-  document.querySelector(`[data-view="${name}"]`).classList.add('active');
+
+  const viewEl = document.getElementById(`view-${name}`);
+  const navBtn = document.querySelector(`[data-view="${name}"]`);
+
+  if (viewEl) viewEl.classList.add('active');
+  if (navBtn) navBtn.classList.add('active');
 }
 
 // ─── UPLOAD HANDLERS ──────────────────────────────────────────────────────────
 
 function handleDragOver(e) {
   e.preventDefault();
-  document.getElementById('uploadZone').classList.add('drag-over');
+  const zone = document.getElementById('uploadZone');
+  if (zone) zone.classList.add('drag-over');
 }
 
 function handleDragLeave() {
-  document.getElementById('uploadZone').classList.remove('drag-over');
+  const zone = document.getElementById('uploadZone');
+  if (zone) zone.classList.remove('drag-over');
 }
 
 function handleDrop(e) {
   e.preventDefault();
-  document.getElementById('uploadZone').classList.remove('drag-over');
+  const zone = document.getElementById('uploadZone');
+  if (zone) zone.classList.remove('drag-over');
+
   const files = e.dataTransfer.files;
   if (files.length > 0) processFile(files[0]);
 }
@@ -121,6 +129,10 @@ async function uploadFile(file) {
 
     updateHeaderStatus(data.summary);
     hideLoading();
+
+    // Show nav only after successful dataset load
+    showNav();
+
     showApp();
 
   } catch (err) {
@@ -140,12 +152,17 @@ function renderDashboard(data) {
   renderMoM(chart_data.momChanges);
   renderAlerts(anomalies);
 
-  document.getElementById('chartMonth').textContent = summary.latest_month || '';
-  document.getElementById('donutTotal').textContent = formatRupee(summary.total_spend);
+  const chartMonth = document.getElementById('chartMonth');
+  const donutTotal = document.getElementById('donutTotal');
+
+  if (chartMonth) chartMonth.textContent = summary.latest_month || '';
+  if (donutTotal) donutTotal.textContent = formatRupee(summary.total_spend);
 }
 
 function renderStats(summary) {
   const row = document.getElementById('statsRow');
+  if (!row) return;
+
   const savingsColor = summary.savings >= 0 ? 'green' : 'red';
   const rateColor = summary.savings_rate >= 20 ? 'green' : summary.savings_rate >= 10 ? 'gold' : 'red';
 
@@ -174,7 +191,10 @@ function renderStats(summary) {
 }
 
 function renderDonut(categories) {
-  const ctx = document.getElementById('donutChart').getContext('2d');
+  const canvas = document.getElementById('donutChart');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
   if (state.charts.donut) state.charts.donut.destroy();
 
   state.charts.donut = new Chart(ctx, {
@@ -190,17 +210,22 @@ function renderDonut(categories) {
     },
     options: {
       cutout: '68%',
-      plugins: { legend: { display: false }, tooltip: {
-        callbacks: {
-          label: (ctx) => ` ${ctx.label}: ${formatRupee(ctx.parsed)} (${categories[ctx.dataIndex].pct}%)`
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.label}: ${formatRupee(ctx.parsed)} (${categories[ctx.dataIndex].pct}%)`
+          }
         }
-      }},
+      },
       animation: { animateRotate: true, duration: 800 }
     }
   });
 
   // Legend
   const legend = document.getElementById('categoryLegend');
+  if (!legend) return;
+
   legend.innerHTML = categories.map((c, i) => `
     <div class="legend-item">
       <div class="legend-dot" style="background:${PALETTE[i]}"></div>
@@ -212,7 +237,10 @@ function renderDonut(categories) {
 }
 
 function renderTrend(monthly) {
-  const ctx = document.getElementById('trendChart').getContext('2d');
+  const canvas = document.getElementById('trendChart');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
   if (state.charts.trend) state.charts.trend.destroy();
 
   state.charts.trend = new Chart(ctx, {
@@ -249,8 +277,18 @@ function renderTrend(monthly) {
         }
       },
       scales: {
-        x: { ticks: { color: '#4a6080', font: { family: 'Space Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-        y: { ticks: { color: '#4a6080', font: { family: 'Space Mono', size: 10 }, callback: v => '₹' + (v/1000).toFixed(0) + 'k' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+        x: {
+          ticks: { color: '#4a6080', font: { family: 'Space Mono', size: 10 } },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: {
+          ticks: {
+            color: '#4a6080',
+            font: { family: 'Space Mono', size: 10 },
+            callback: v => '₹' + (v / 1000).toFixed(0) + 'k'
+          },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        }
       }
     }
   });
@@ -258,6 +296,8 @@ function renderTrend(monthly) {
 
 function renderMoM(changes) {
   const list = document.getElementById('momList');
+  if (!list) return;
+
   if (!changes || changes.length === 0) {
     list.innerHTML = '<div class="empty-state"><span>📊</span>Only one month of data</div>';
     return;
@@ -283,6 +323,7 @@ function renderMoM(changes) {
 function renderAlerts(anomalies) {
   const list = document.getElementById('alertList');
   const badge = document.getElementById('alertBadge');
+  if (!list || !badge) return;
 
   if (!anomalies || anomalies.all_alerts.length === 0) {
     badge.textContent = 'CLEAR';
@@ -307,59 +348,69 @@ function renderAnomalies(anomalies) {
 
   // Budget alerts
   const budgetDiv = document.getElementById('budgetAlerts');
-  if (anomalies.all_alerts.filter(a => a.type === 'budget_exceeded').length === 0) {
-    budgetDiv.innerHTML = '<div class="empty-state"><span>✓</span>All categories within budget</div>';
-  } else {
-    budgetDiv.innerHTML = anomalies.all_alerts
-      .filter(a => a.type === 'budget_exceeded')
-      .map(a => `
-        <div class="anomaly-row ${a.severity}">
-          <div class="anomaly-row-title">${a.category}</div>
-          <div class="anomaly-row-detail">${a.message}</div>
-          <div class="anomaly-row-meta">
-            <span class="anomaly-tag ${a.severity}">${a.severity.toUpperCase()}</span>
+  if (budgetDiv) {
+    if (anomalies.all_alerts.filter(a => a.type === 'budget_exceeded').length === 0) {
+      budgetDiv.innerHTML = '<div class="empty-state"><span>✓</span>All categories within budget</div>';
+    } else {
+      budgetDiv.innerHTML = anomalies.all_alerts
+        .filter(a => a.type === 'budget_exceeded')
+        .map(a => `
+          <div class="anomaly-row ${a.severity}">
+            <div class="anomaly-row-title">${a.category}</div>
+            <div class="anomaly-row-detail">${a.message}</div>
+            <div class="anomaly-row-meta">
+              <span class="anomaly-tag ${a.severity}">${a.severity.toUpperCase()}</span>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `).join('');
+    }
   }
 
   // Category spikes
   const spikesDiv = document.getElementById('categorySpikes');
-  if (anomalies.all_alerts.filter(a => a.type === 'category_spike').length === 0) {
-    spikesDiv.innerHTML = '<div class="empty-state"><span>✓</span>No unusual spikes detected</div>';
-  } else {
-    spikesDiv.innerHTML = anomalies.all_alerts
-      .filter(a => a.type === 'category_spike')
-      .map(a => `
-        <div class="anomaly-row ${a.severity}">
-          <div class="anomaly-row-title">${a.category} ↑${a.change_pct}%</div>
-          <div class="anomaly-row-detail">${a.message}</div>
-          <div class="anomaly-row-meta">
-            <span class="anomaly-tag ${a.severity}">SPIKE</span>
+  if (spikesDiv) {
+    if (anomalies.all_alerts.filter(a => a.type === 'category_spike').length === 0) {
+      spikesDiv.innerHTML = '<div class="empty-state"><span>✓</span>No unusual spikes detected</div>';
+    } else {
+      spikesDiv.innerHTML = anomalies.all_alerts
+        .filter(a => a.type === 'category_spike')
+        .map(a => `
+          <div class="anomaly-row ${a.severity}">
+            <div class="anomaly-row-title">${a.category} ↑${a.change_pct}%</div>
+            <div class="anomaly-row-detail">${a.message}</div>
+            <div class="anomaly-row-meta">
+              <span class="anomaly-tag ${a.severity}">SPIKE</span>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `).join('');
+    }
   }
 
   // Transaction anomalies
   const txnDiv = document.getElementById('txnAnomalies');
-  if (!anomalies.transaction_anomalies || anomalies.transaction_anomalies.length === 0) {
-    txnDiv.innerHTML = '<div class="empty-state"><span>✓</span>No outlier transactions found</div>';
-  } else {
-    txnDiv.innerHTML = anomalies.transaction_anomalies.map(t => `
-      <div class="txn-anomaly-row">
-        <div class="txn-date">${t.date}</div>
-        <div class="txn-desc" title="${t.description}">${t.description.substring(0, 40)}${t.description.length > 40 ? '…' : ''}</div>
-        <div class="txn-amt">${formatRupee(t.amount)}</div>
-        <div class="txn-z">z=${t.z_score}</div>
-      </div>
-    `).join('');
+  if (txnDiv) {
+    if (!anomalies.transaction_anomalies || anomalies.transaction_anomalies.length === 0) {
+      txnDiv.innerHTML = '<div class="empty-state"><span>✓</span>No outlier transactions found</div>';
+    } else {
+      txnDiv.innerHTML = anomalies.transaction_anomalies.map(t => `
+        <div class="txn-anomaly-row">
+          <div class="txn-date">${t.date}</div>
+          <div class="txn-desc" title="${t.description}">
+            ${t.description.substring(0, 40)}${t.description.length > 40 ? '…' : ''}
+          </div>
+          <div class="txn-amt">${formatRupee(t.amount)}</div>
+          <div class="txn-z">z=${t.z_score}</div>
+        </div>
+      `).join('');
+    }
   }
 }
 
 function showInitialAnalysis(text) {
   const card = document.getElementById('initialAnalysisCard');
   const body = document.getElementById('initialAnalysisBody');
+  if (!card || !body) return;
+
   body.innerHTML = formatMarkdown(text);
   card.style.display = 'block';
 }
@@ -368,7 +419,7 @@ function showInitialAnalysis(text) {
 
 async function sendMessage() {
   const input = document.getElementById('chatInput');
-  const msg = input.value.trim();
+  const msg = input?.value?.trim();
   if (!msg || !state.dataLoaded) return;
 
   input.value = '';
@@ -404,15 +455,19 @@ async function sendMessage() {
 }
 
 function askQuick(question) {
-  document.getElementById('chatInput').value = question;
+  const input = document.getElementById('chatInput');
+  if (input) input.value = question;
   sendMessage();
 }
 
 function appendMessage(role, text) {
   const container = document.getElementById('chatMessages');
+  if (!container) return;
+
   const div = document.createElement('div');
   div.className = `message ${role}`;
   const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
   div.innerHTML = `
     <div class="message-bubble">${role === 'assistant' ? formatMarkdown(text) : escapeHtml(text)}</div>
     <div class="message-meta">${role === 'user' ? 'You' : 'FinSight'} · ${time}</div>
@@ -423,6 +478,8 @@ function appendMessage(role, text) {
 
 function showThinking() {
   const container = document.getElementById('chatMessages');
+  if (!container) return null;
+
   const id = 'thinking-' + Date.now();
   const div = document.createElement('div');
   div.id = id;
@@ -438,6 +495,7 @@ function showThinking() {
 }
 
 function removeThinking(id) {
+  if (!id) return;
   const el = document.getElementById(id);
   if (el) el.remove();
 }
@@ -445,6 +503,8 @@ function removeThinking(id) {
 function showSources(sources) {
   const panel = document.getElementById('sourcesPanel');
   const list = document.getElementById('sourcesList');
+  if (!panel || !list) return;
+
   panel.style.display = 'block';
   list.innerHTML = sources.map(s => `
     <div class="source-item">
@@ -455,54 +515,78 @@ function showSources(sources) {
 }
 
 function setSendDisabled(disabled) {
-  document.getElementById('sendBtn').disabled = disabled;
+  const btn = document.getElementById('sendBtn');
+  if (btn) btn.disabled = disabled;
 }
 
 // ─── UI HELPERS ───────────────────────────────────────────────────────────────
 
 function showLoading() {
-  document.getElementById('loadingOverlay').style.display = 'flex';
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.style.display = 'flex';
 }
 
 function hideLoading() {
-  document.getElementById('loadingOverlay').style.display = 'none';
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function showNav() {
+  const nav = document.querySelector('.header-nav');
+  if (!nav) return;
+  nav.style.display = 'flex';
+}
+
+function hideNav() {
+  const nav = document.querySelector('.header-nav');
+  if (!nav) return;
+  nav.style.display = 'none';
 }
 
 function showApp() {
-  document.getElementById('uploadSection').style.display = 'none';
-  document.getElementById('appMain').style.display = 'block';
+  const uploadSection = document.getElementById('uploadSection');
+  const appMain = document.getElementById('appMain');
+
+  if (uploadSection) uploadSection.style.display = 'none';
+  if (appMain) appMain.style.display = 'block';
+
   switchView('dashboard');
 }
 
 function updateHeaderStatus(summary) {
   const status = document.getElementById('headerStatus');
+  if (!status) return;
+
   status.innerHTML = `
     <span class="status-dot active"></span>
     <span style="font-family:var(--mono);font-size:11px;color:var(--green)">
-      ${summary.latest_month} · ₹${(summary.total_income/1000).toFixed(0)}k income · ${summary.transaction_count} txns
+      ${summary.latest_month} · ₹${(summary.total_income / 1000).toFixed(0)}k income · ${summary.transaction_count} txns
     </span>
   `;
 }
 
 function formatRupee(amount) {
-  if (!amount && amount !== 0) return '₹0';
+  if (amount === null || amount === undefined) return '₹0';
   if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
   if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}k`;
   return `₹${Math.round(amount)}`;
 }
 
 function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function formatMarkdown(text) {
   // Very lightweight markdown → HTML
-  return text
+  return String(text)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/^### (.+)$/gm, '<div style="color:var(--text-1);font-weight:700;margin-top:10px;margin-bottom:4px">$1</div>')
-    .replace(/^## (.+)$/gm, '<div style="color:var(--green);font-weight:700;font-size:13px;margin-top:12px;margin-bottom:6px">$1</div>')
+    .replace(/^## (.+)$/gm, '<div style="color:var(--primary);font-weight:700;font-size:13px;margin-top:12px;margin-bottom:6px">$1</div>')
     .replace(/^- (.+)$/gm, '<div style="padding-left:12px;margin-top:2px">• $1</div>')
     .replace(/\n/g, '<br>');
 }
@@ -510,6 +594,9 @@ function formatMarkdown(text) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Keep nav hidden until the user uploads data or loads sample data
+  hideNav();
+
   // Check if API is configured
   fetch('/api/health')
     .then(r => r.json())

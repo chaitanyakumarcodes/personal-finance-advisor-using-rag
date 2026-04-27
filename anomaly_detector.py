@@ -9,7 +9,7 @@ Methods:
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 
 def detect_transaction_anomalies(df: pd.DataFrame, z_threshold: float = 2.0) -> List[Dict]:
@@ -67,7 +67,7 @@ def detect_category_spikes(summary: dict, spike_threshold: float = 30.0) -> List
     return sorted(spikes, key=lambda x: x["change_pct"], reverse=True)
 
 
-def compute_savings_alert(summary: dict) -> Dict | None:
+def compute_savings_alert(summary: dict) -> Optional[Dict]:
     """Check if savings rate is dangerously low."""
     rate = summary.get("savings_rate", 0)
     if rate < 10:

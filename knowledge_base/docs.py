@@ -1,6 +1,5 @@
 """
 Financial Knowledge Base — Embedded documents for RAG retrieval.
-These cover budgeting, investing, saving strategies, and Indian personal finance.
 """
 
 FINANCIAL_DOCUMENTS = [
@@ -107,19 +106,17 @@ FINANCIAL_DOCUMENTS = [
         Wishlist method: move desired items to wishlist, review monthly — want often fades.
         Unsubscribe from promotional emails and disable sale notifications from apps.
         Amazon, Flipkart sales rarely offer the best prices — compare on PriceSpy or Camelcamelcamel.
-        Buy quality over quantity: one ₹3,000 item lasting 3 years vs three ₹1,000 items = same cost, less clutter.
-        Capsule wardrobe approach: fewer, versatile, quality clothing pieces reduces total clothing spend."""
+        Buy quality over quantity: one ₹3,000 item lasting 3 years vs three ₹1,000 items = same cost, less clutter."""
     },
     {
         "id": "utility_optimization",
         "title": "Utilities and Bills Optimization",
         "content": """Utility bills (electricity, internet, phone) are often set-and-forget — but savings are real.
-        Electricity: AC at 24°C vs 18°C uses 30% less power. LED bulbs save ₹500-1,000/year over incandescent.
+        Electricity: AC at 24C vs 18C uses 30% less power. LED bulbs save ₹500-1,000/year over incandescent.
         Internet: competitive bids from Airtel/Jio/BSNL often yield 20-30% better plans.
         Mobile: evaluate if postpaid plan matches actual usage vs prepaid alternatives.
         Water heater: timer switches save 20-30% on geyser electricity costs.
-        Consider solar water heating for long-term savings in sunny regions.
-        Review insurance premiums annually — compare online aggregators (PolicyBazaar) for better rates.
+        Review insurance premiums annually — compare online aggregators for better rates.
         Group insurance through employer is typically 40-60% cheaper than individual policies."""
     },
     {
@@ -135,7 +132,7 @@ FINANCIAL_DOCUMENTS = [
         7. NPS for additional ₹50,000 deduction under 80CCD(1B)
         8. Remaining in diversified equity mutual funds via SIP
         Never: MLM schemes, unsolicited stock tips, cryptocurrency speculation with essential funds.
-        Rule of thumb: equity allocation % = 100 minus your age (adjust for risk tolerance)."""
+        Rule of thumb: equity allocation % = 100 minus your age."""
     },
     {
         "id": "anomaly_response",
@@ -146,8 +143,7 @@ FINANCIAL_DOCUMENTS = [
         Travel spikes: evaluate if credit card travel benefits could offset future costs.
         Irregular income months (bonuses, freelance): allocate windfalls — 50% invest, 30% debt, 20% treat.
         Annual expense spikes (insurance, property tax, maintenance): pre-fund via monthly sinking fund.
-        Divide annual irregular expenses by 12 and save monthly — prevents cash flow shocks.
-        Track year-over-year comparisons for seasonal patterns in your spending."""
+        Divide annual irregular expenses by 12 and save monthly — prevents cash flow shocks."""
     },
     {
         "id": "financial_goals",
@@ -158,10 +154,10 @@ FINANCIAL_DOCUMENTS = [
         Long-term (5+ years): retirement, children's education → equity funds.
         Reverse calculation: goal ₹10 lakh in 5 years at 12% return → need ₹12,244/month SIP.
         Track net worth monthly: assets (investments + savings) minus liabilities (loans + dues).
-        Net worth growing = financial health. Flat or declining = immediate review needed.
-        Create a personal financial statement — income, expenses, assets, liabilities — update quarterly."""
+        Net worth growing = financial health. Flat or declining = immediate review needed."""
     }
 ]
+
 
 def get_all_documents():
     return FINANCIAL_DOCUMENTS

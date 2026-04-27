@@ -10,7 +10,7 @@ Architecture:
 import os
 import numpy as np
 from typing import List, Optional
-import anthropic
+from openai import OpenAI, OpenAIError
 
 # ─── KNOWLEDGE BASE SETUP ─────────────────────────────────────────────────────
 
@@ -80,17 +80,24 @@ class FAISSRetriever:
 
 
 def build_knowledge_index() -> int:
-    """Build retrieval index. Tries FAISS first, falls back to TF-IDF."""
+    """Build retrieval index. Uses TF-IDF by default (FAISS optional for performance)."""
     global _retriever, _documents
     from knowledge_base.docs import get_all_documents
     _documents = get_all_documents()
 
+    # Default to TF-IDF for reliability; FAISS can be enabled manually if needed
     try:
-        _retriever = FAISSRetriever(_documents)
-        print("✅ Using FAISS + sentence-transformers retriever")
-    except Exception:
+        # Try FAISS only if explicitly enabled via env var
+        if os.environ.get("USE_FAISS", "").lower() == "true":
+            _retriever = FAISSRetriever(_documents)
+            print("✅ Using FAISS + sentence-transformers retriever")
+        else:
+            _retriever = TFIDFRetriever(_documents)
+            print("✅ Using TF-IDF retriever (production-grade for domain text)")
+    except Exception as e:
+        print(f"⚠️  Retriever initialization error: {e}")
         _retriever = TFIDFRetriever(_documents)
-        print("✅ Using TF-IDF retriever (production-grade for domain text)")
+        print("✅ Falling back to TF-IDF retriever")
 
     return len(_documents)
 
@@ -107,12 +114,12 @@ def retrieve_relevant_docs(query: str, financial_context: str = "", top_k: int =
 
 # ─── LLM INTEGRATION ─────────────────────────────────────────────────────────
 
-def get_anthropic_client():
-    """Get Anthropic client — API key from env."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+def get_openai_client() -> OpenAI:
+    """Get OpenAI client — API key from env."""
+    api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
-    return anthropic.Anthropic(api_key=api_key)
+        raise ValueError("OPENAI_API_KEY environment variable not set.")
+    return OpenAI(api_key=api_key)
 
 
 def build_rag_prompt(
@@ -126,7 +133,7 @@ def build_rag_prompt(
     for i, doc in enumerate(retrieved_docs, 1):
         docs_text += f"\n### Knowledge Source {i}: {doc['title']}\n{doc['content']}\n"
 
-    prompt = f"""You are an expert personal finance advisor specialized in Indian personal finance. 
+    prompt = f"""You are an expert personal finance advisor specialized in Indian personal finance.
 You provide specific, actionable, numbers-driven advice — not generic tips.
 
 ## USER'S FINANCIAL DATA:
@@ -185,7 +192,7 @@ def generate_advice(
     Returns advice dict with response text + metadata.
     """
     try:
-        client = get_anthropic_client()
+        client = get_openai_client()
 
         # Step 1: Retrieve relevant docs
         retrieved_docs = retrieve_relevant_docs(
@@ -202,40 +209,51 @@ def generate_advice(
             retrieved_docs=retrieved_docs,
         )
 
-        # Step 3: Build messages (with history for multi-turn)
-        messages = []
+        # Step 3: Build messages array (system + history + current user msg)
+        system_message = {
+            "role": "system",
+            "content": (
+                "You are a precise, numbers-driven personal finance advisor for India. "
+                "Always ground your advice in the user's actual transaction data. "
+                "Be specific, not generic. Speak in plain English, not jargon."
+            )
+        }
+
+        messages = [system_message]
         if conversation_history:
             for h in conversation_history[-6:]:  # last 3 turns
                 messages.append(h)
         messages.append({"role": "user", "content": prompt})
 
-        # Step 4: Call Claude
-        response = client.messages.create(
-            model="claude-opus-4-5",
+        # Step 4: Call OpenAI
+        response = client.chat.completions.create(
+            model="gpt-4o",
             max_tokens=1000,
             messages=messages,
-            system=(
-                "You are a precise, numbers-driven personal finance advisor for India. "
-                "Always ground your advice in the user's actual transaction data. "
-                "Be specific, not generic. Speak in plain English, not jargon."
-            )
         )
 
-        advice_text = response.content[0].text
-        used_sources = [{"title": d["title"], "id": d["id"], "score": round(d["relevance_score"], 3)} for d in retrieved_docs]
+        advice_text = response.choices[0].message.content
+        used_sources = [
+            {
+                "title": d["title"],
+                "id": d["id"],
+                "score": round(d["relevance_score"], 3)
+            }
+            for d in retrieved_docs
+        ]
 
         return {
             "success": True,
             "response": advice_text,
             "sources": used_sources,
-            "model": "claude-opus-4-5",
-            "tokens_used": response.usage.input_tokens + response.usage.output_tokens,
+            "model": "gpt-4o",
+            "tokens_used": response.usage.total_tokens,
         }
 
     except ValueError as e:
         return {"success": False, "error": str(e), "response": ""}
-    except anthropic.APIError as e:
-        return {"success": False, "error": f"API error: {e}", "response": ""}
+    except OpenAIError as e:
+        return {"success": False, "error": f"OpenAI API error: {e}", "response": ""}
     except Exception as e:
         return {"success": False, "error": f"Unexpected error: {e}", "response": ""}
 
@@ -271,6 +289,9 @@ def evaluate_retrieval(test_queries: List[str]) -> List[dict]:
         docs = retrieve_relevant_docs(query, top_k=3)
         results.append({
             "query": query,
-            "retrieved": [{"title": d["title"], "score": round(d["relevance_score"], 3)} for d in docs]
+            "retrieved": [
+                {"title": d["title"], "score": round(d["relevance_score"], 3)}
+                for d in docs
+            ]
         })
     return results
