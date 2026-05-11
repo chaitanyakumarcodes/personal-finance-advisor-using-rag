@@ -6,6 +6,27 @@ In short: upload your bank statement, get an instant breakdown of where your mon
 
 ---
 
+## Dashboard
+
+<img width="1887" height="871" alt="image" src="https://github.com/user-attachments/assets/484d120b-661a-4079-8262-df203a977097" />
+
+---
+
+## AI Advisor
+
+
+<img width="1897" height="862" alt="image" src="https://github.com/user-attachments/assets/3fd97d95-6e9a-4b55-83a1-9e681a8c6c73" />
+
+---
+
+## Anomalies
+
+
+<img width="1901" height="870" alt="image" src="https://github.com/user-attachments/assets/9052c4ec-b572-44fa-b3df-00469e80a102" />
+
+
+---
+
 ## How It Works
 
 1. You upload a CSV or PDF bank statement.
